@@ -1,6 +1,18 @@
+/**
+ * @file   mergesort.cpp
+ * @author Sanju Prakash Kannioth
+ * @brief  This file contains the function defenitions for merge sort
+ * @date   09/24/2019
+ * 
+ * @Reference https://stackoverflow.com/questions/52767944/merge-sort-with-pthreads-in-c
+ *            https://www.geeksforgeeks.org/merge-sort/
+ */
+
 #include "mergesort.h"
+
 #include <stdlib.h>
 
+/* Function to merge 2 sub arrays */
 void merge(int arr[], int low, int mid, int high) 
 { 
     int i, j, k; 
@@ -48,6 +60,7 @@ void merge(int arr[], int low, int mid, int high)
     } 
 } 
 
+/* Recursive function for merge sort */
 void mergeSort(int arr[], int low, int high) 
 { 
     if (low < high) 

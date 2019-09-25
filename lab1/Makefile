@@ -8,4 +8,4 @@ all: $(OBJ)
 	$(CC) $(OBJ) $(CFLAGS) -o $(OP)
 
 clean:
-	rm -f *.o *.txt
+	rm -f *.o *.txt $(OP)

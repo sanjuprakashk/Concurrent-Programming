@@ -18,7 +18,7 @@
 
 using namespace std;
 
-    
+
 #define MAX_FILE_NAME_SIZE (100) // Limit to maximux file name size
 
 static bool output_file_flag = false; // Indicates if output file is specified
@@ -26,22 +26,22 @@ static char student_name[] = "Sanju Prakash Kannioth";
 static char output_file[MAX_FILE_NAME_SIZE]; // Variable to store output file name
 static char source_file[MAX_FILE_NAME_SIZE]; // Variable to store input file name
 
-static char algo[] = "DEFAULT";
+static char algo[] = "DEFAULT"; // Chosen algorithm
 
-int num_threads = 1;
+static int num_threads = 1; // Total number of threads, default to 1 for main thread
 
-pthread_barrier_t bar;
+pthread_barrier_t bar; // Barrier
 
 struct timespec start, finish;
 
-int *arr_elements = NULL;
-int num_elements = 0;
-vector<multiset<int> > bucket;
-int divider;
-mutex mtx;
+int *arr_elements = NULL; // Array to store sorted elements
+static int num_elements = 0; // Variable to store number of elements
 
+vector<multiset<int> > bucket; // For bucket sort
+static int divider = 1;
+mutex mtx; // Mutex lock for bucket sort
 
-
+/* Thread callback function for merge sort */
 void *threadedMerge(void *arg) {
     struct merge_sort_task *task = (struct merge_sort_task *)arg;
     int low;
@@ -49,7 +49,7 @@ void *threadedMerge(void *arg) {
 
     pthread_barrier_wait(&bar);
     
-    if(task->task_no == 0){
+    if( task->task_no == 0 ) {
         clock_gettime(CLOCK_MONOTONIC, &start);
     }
 
@@ -63,32 +63,40 @@ void *threadedMerge(void *arg) {
     // evaluating mid point
     int mid = low + (high - low) / 2;
 
-    if (low < high) {
+    if ( low < high ) {
         mergeSort(arr_elements, low, high);
     }
 
     pthread_barrier_wait(&bar);
-    if(task->task_no == 0){
+
+    if( task->task_no == 0 ) {
+        for (int i = 1; i < num_threads; i++) {
+            struct merge_sort_task *task1 = &task[i];
+            merge(arr_elements, 0, task1->task_low - 1, task1->task_high);
+        }
         clock_gettime(CLOCK_MONOTONIC, &finish);
     }
 }
 
+/* Thread callback function for bucket sort */
 void *threadedBucket(void *arg) {
     int i, j;
     // mtx.lock();
-    int temp = *(int *)arg;
+    int thread_id = *(int *)arg;
     
     pthread_barrier_wait(&bar);
     
-    if(temp == 0){
+    if( thread_id == 0 ) {
         clock_gettime(CLOCK_MONOTONIC, &start);
     }
 
     pthread_barrier_wait(&bar);
-    for(i = 0; i < num_elements; i++) {
-        j = floor( arr_elements[i] / divider );
+
+    /* Traverse array and check if array element fit in correct bucket number */
+    for( i = 0; i < num_elements; i++ ) {
+        j = floor(arr_elements[i] / divider);
         
-        if(j == temp) {
+        if( j == thread_id ) {
             mtx.lock();
             bucket[j].insert(arr_elements[i]);
             mtx.unlock();
@@ -96,7 +104,9 @@ void *threadedBucket(void *arg) {
     }
 
     pthread_barrier_wait(&bar);
-    if(temp == 0){
+
+    if( thread_id  == 0 ) {
+        bucketSort(arr_elements, num_elements, num_threads);
         clock_gettime(CLOCK_MONOTONIC, &finish);
     }
 }
@@ -138,7 +148,10 @@ int read_sort_write() {
     fseek(source_fp, 0, SEEK_SET); // Move file pointer to beginning of file
 
     while( i < num_elements ) {
-        fscanf(source_fp, "%d", &arr_elements[i]);
+        if( !fscanf(source_fp, "%d", &arr_elements[i]) ) {
+            printf("File read failed\n");
+            return -1;
+        }
         ++i;
     }
 
@@ -156,18 +169,23 @@ int read_sort_write() {
     pthread_t threads[num_threads];
     pthread_barrier_init(&bar, NULL, num_threads);
 
+    /* Fork join */
     if(!(strcmp(algo, "fj"))) {
+        /*
+        https://stackoverflow.com/questions/52767944/merge-sort-with-pthreads-in-c
+        https://www.geeksforgeeks.org/merge-sort/
+        */
         struct merge_sort_task *task;
         struct merge_sort_task tasklist[num_threads];
         
         int len = 0;
+        int low = 0;
 
         if( num_threads != 0 ) {
             len = num_elements / num_threads;
         }
 
-       int low = 0;
-
+        /* splitting input array to smaller arrays */
         for (int i = 0; i < num_threads; i++, low += len) {
             task = &tasklist[i];
             task->task_no = i;
@@ -186,36 +204,35 @@ int read_sort_write() {
         for (int i = 0; i < num_threads; i++) {
             pthread_join(threads[i], NULL);
         }
-
-        
-        // struct task *taskm = &tasklist[0];
-        for (int i = 1; i < num_threads; i++) {
-            struct merge_sort_task *task = &tasklist[i];
-            merge(arr_elements, 0, task->task_low - 1, task->task_high);
-        }
     }
 
+    /* Bucket sort */
     else if(!(strcmp(algo, "bucket"))) {
-        int temp[num_threads];
-        int max, num_bucket = num_threads, i, j, k;
-      
-          //10 buckets
+        /*
+        https://www.dyclassroom.com/sorting-algorithm/bucket-sort
+        https://www.youtube.com/watch?v=geVyIsFpxUs&list=LLNT8xg5eYSQAIxz0BSdl3zQ&index=4&t=373s
+        */
 
+        int thread_id[num_threads];
+        int max, num_bucket = num_threads, i;
+
+        
         bucket.resize(num_bucket);
-        //find max and min
+        
+        // find max to use for range division 
         max = *max_element(arr_elements, arr_elements + num_elements);
-        int min = *min_element(arr_elements, arr_elements + num_elements);
+        
+        // range division factor
         divider = ceil(float(max + 1) / num_bucket);
-  
+
         for (int i = 0; i < num_threads; i++) {
-            temp[i] = i;
-            pthread_create(&threads[i], NULL, threadedBucket, &temp[i]);
+            thread_id[i] = i;
+            pthread_create(&threads[i], NULL, threadedBucket, &thread_id[i]);
         }
 
         for (int i = 0; i < num_threads; i++) {
             pthread_join(threads[i], NULL);
-        }
-        bucketSort(arr_elements, num_elements, num_threads);        
+        }       
     }
 
     // If output file is specified, write to file, else write to stdout
@@ -232,8 +249,6 @@ int read_sort_write() {
     unsigned long long elapsed_ns;
     elapsed_ns = (finish.tv_sec-start.tv_sec)*1000000000 + (finish.tv_nsec-start.tv_nsec);
     printf("Elapsed (ns): %llu\n",elapsed_ns);
-    double elapsed_s = ((double)elapsed_ns)/1000000000.0;
-    printf("Elapsed (s): %lf\n",elapsed_s);
 
     // cleanup
     fclose(source_fp);
@@ -258,39 +273,38 @@ int main(int argc, char *argv[]) {
     };
 
     while( (cli_arguments = getopt_long(argc, argv,"o:n:t:",
-                   long_options, &long_index) ) != -1) {
+     long_options, &long_index) ) != -1) {
 
         switch ( cli_arguments ) {
             case 'n':
-                printf("%s\n", student_name);
+            printf("%s\n", student_name);
                 exit(0); // Print name and exit immediately
                 break;
-            
-            case 'o':
+
+                case 'o':
                 output_file_flag = true;
                 strcpy(output_file, optarg);
                 break;
 
-            case 't':
+                case 't':
                 num_threads = atoi(optarg);
-                printf("Num threads = %d\n", num_threads);
                 break;
 
-            case 'a':
+                case 'a':
                 strcpy(algo, optarg);               
                 break;
 
-            case '?':
+                case '?':
                 break;
+            }
         }
-    }
 
     // https://stackoverflow.com/questions/18079340/using-getopt-in-c-with-non-option-arguments
-    if( optind < argc ) {
-        strcpy(source_file, argv[optind]);
-    }
-    else {
-        printf("Source file not specified\n");
+        if( optind < argc ) {
+            strcpy(source_file, argv[optind]);
+        }
+        else {
+            printf("Source file not specified\n");
         return -1; // source file not specified
     }
 
