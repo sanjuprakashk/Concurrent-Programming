@@ -18,7 +18,7 @@
 
 using namespace std;
 
-
+#define MAX_THREADS 200 // Specifies max number of threads
 #define MAX_FILE_NAME_SIZE (100) // Limit to maximux file name size
 
 static bool output_file_flag = false; // Indicates if output file is specified
@@ -39,7 +39,7 @@ static int num_elements = 0; // Variable to store number of elements
 
 vector<multiset<int> > bucket; // For bucket sort
 static int divider = 1;
-mutex mtx; // Mutex lock for bucket sort
+mutex mtx[MAX_THREADS]; // Mutex lock for bucket sort
 
 /* Thread callback function for merge sort */
 void *threadedMerge(void *arg) {
@@ -83,6 +83,7 @@ void *threadedBucket(void *arg) {
     int i, j;
     // mtx.lock();
     int thread_id = *(int *)arg;
+    int range1, range2;
     
     pthread_barrier_wait(&bar);
     
@@ -92,15 +93,21 @@ void *threadedBucket(void *arg) {
 
     pthread_barrier_wait(&bar);
 
+    range1 = thread_id * (num_elements / num_threads);
+    
+    if( thread_id == num_threads -1 ) {
+        range2 = num_elements;
+    }
+    else {
+        range2 = (thread_id + 1) * (num_elements / num_threads);
+    }
     /* Traverse array and check if array element fit in correct bucket number */
-    for( i = 0; i < num_elements; i++ ) {
+    for( i = range1; i < range2; i++ ) {
         j = floor(arr_elements[i] / divider);
         
-        if( j == thread_id ) {
-            mtx.lock();
-            bucket[j].insert(arr_elements[i]);
-            mtx.unlock();
-        }
+        mtx[j].lock();
+        bucket[j].insert(arr_elements[i]);
+        mtx[j].unlock();
     }
 
     pthread_barrier_wait(&bar);
@@ -310,6 +317,11 @@ int main(int argc, char *argv[]) {
 
     if(!strcmp(algo, "DEFAULT")) {
         printf("Algorithm not defined\n");
+        return -1;
+    }
+
+    if(num_threads > MAX_THREADS) {
+        printf("Number of threads greater than %d\n", MAX_THREADS);
         return -1;
     }
 
