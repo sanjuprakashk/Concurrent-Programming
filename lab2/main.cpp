@@ -2,7 +2,7 @@
  * @file   main.cpp
  * @author Sanju Prakash Kannioth
  * @brief  This file is the main file for lab2
- * @date   09/16/2019
+ * @date   09/17/2019
  *
  */
 
@@ -47,6 +47,10 @@ mutex mtx[MAX_THREADS]; // Mutex lock for bucket sort
 
 int LOCK_NUM = 0;
 int UNLOCK_OFFSET = 4;
+
+int mcs_lock_selected = 0;
+
+MCSLock each_mcs;
 
 extern pthread_mutex_t lock1;
 
@@ -127,6 +131,7 @@ void *threadedBucket(void *arg) {
         }
     }
 
+    Node *local = new Node;
     pthread_barrier_wait(&bar);
     
     if( thread_id == 0 ) {
@@ -148,10 +153,20 @@ void *threadedBucket(void *arg) {
         j = floor(arr_elements[i] / divider);
         
         // mtx[j].lock();
-        lock_func();
+        if(mcs_lock_selected) {
+            each_mcs.acquire(local);
+        }
+        else { 
+            lock_func();
+        }
         bucket[j].insert(arr_elements[i]);
         // mtx[j].unlock();
-        unlock_func();
+        if(mcs_lock_selected) {
+            each_mcs.release(local);
+        }
+        else {
+            unlock_func();
+        }
     }
 
     pthread_barrier_wait(&bar);
@@ -159,8 +174,9 @@ void *threadedBucket(void *arg) {
     if( thread_id  == 0 ) {
         bucketSort(arr_elements, num_elements, num_threads);
         clock_gettime(CLOCK_MONOTONIC, &finish);
-        printf("Lock used = %d\n", LOCK_NUM);
     }
+
+    delete local;
 }
 
 
@@ -383,6 +399,10 @@ int main(int argc, char *argv[]) {
     }
 
     for(int i = 0; i < NUM_LOCK_FUNCS / 2; i++) {
+        if(strcmp(lock_select, "mcs") == 0) {
+            mcs_lock_selected = 1;
+            break;
+        }
         if(strcmp(lock_select, func_names[i]) == 0) {
             LOCK_NUM = i;
             break;

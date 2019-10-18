@@ -2,7 +2,7 @@ CC = g++
 SRC1 = main.cpp mergesort.cpp bucketsort.cpp locks.cpp
 OP1 = mysort
 OP2 = counter
-CFLAGS = -pthread -O3
+CFLAGS = -pthread
 OBJ1 := $(SRC1:.c=.o)
 
 SRC2 = counter.cpp locks.cpp

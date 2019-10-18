@@ -2,7 +2,7 @@
  * @file   counter.cpp
  * @author Sanju Prakash Kannioth
  * @brief  This file is the counter program file for lab2
- * @date   09/16/2019
+ * @date   09/17/2019
  *
  */
 
@@ -12,6 +12,7 @@
 #include <stdbool.h>
 #include <getopt.h>
 #include <pthread.h>
+#include <atomic>
 
 #include "locks.h"
 
@@ -46,8 +47,14 @@ int BAR_NUM = 0;
 
 int is_barrier_selected = 0;
 int is_lock_selected = 0;
+int mcs_lock_selected = 0;
 
 const int NUM_LOCK_FUNCS = 8;
+
+MCSLock each_mcs;
+
+// Function pointer to store the callback functions for all the locks
+// Copied from professors example code
 void (*funcs[NUM_LOCK_FUNCS])()  = {
     tas_lock,
     ttas_lock,
@@ -59,7 +66,8 @@ void (*funcs[NUM_LOCK_FUNCS])()  = {
     pthread_unlock
 
 };
-    
+
+// Array consisting name of all the locks implemented
 const char* func_names[NUM_LOCK_FUNCS/2] = {
     "tas",
     "ttas",
@@ -68,27 +76,38 @@ const char* func_names[NUM_LOCK_FUNCS/2] = {
 };
 
 const int NUM_BAR_FUNCS = 2;
+
+// Function pointer to store the callback functions for all the barriers
 void (*funcs_barrier[NUM_BAR_FUNCS])()  = {
     sense_bar,
     pthread_bar
 };
-    
+
+// Array conisting name of all the barriers implemented
 const char* func_names_barrier[NUM_BAR_FUNCS] = {
     "sense",
     "pthread"
 };
 
+// global counter variable to be incremented
 int cntr = 0;
 
 void (*bar_func)() = NULL;
 
+// callback function for all the threads
+// pthread barriers are used for timing
+// bar is pthread bar; bar1 can be sense reversal or pthread barrier
 void* thread_main(void *args) {
     int thread_id = *(int *)args;
 
+    // function pointer to store lock function
     void (*lock_func)() = funcs[LOCK_NUM];
+    // function pointer to store unlock function
     void (*unlock_func)() = funcs[LOCK_NUM + UNLOCK_OFFSET];
 
-     pthread_barrier_wait(&bar);
+    pthread_barrier_wait(&bar);
+
+    // Init mutex lock if selected
     if( thread_id == 0 ) {
         if(is_lock_selected) {
             if(strcmp(func_names[LOCK_NUM], "pthread")) {
@@ -103,13 +122,19 @@ void* thread_main(void *args) {
     
     pthread_barrier_wait(&bar);
 
-    // pthread_bar();
-    // sense_bar();
-
-    for(int i = 0; i < NUM_ITERATIONS; i++){
+    Node *local = new Node;
+    
+    for(int i = 0; i <NUM_ITERATIONS * num_threads; i++){
         if(i%num_threads==thread_id){
-            if(is_lock_selected) {
-                lock_func();
+            // code block for counter increment if mcs lock is selected
+            if(mcs_lock_selected) {
+                each_mcs.acquire(local);
+                cntr++;
+                each_mcs.release(local);
+            }
+            // code block for counter increment if any other lock is selected
+            else if(is_lock_selected) {
+                lock_func();    
                 cntr++;
                 unlock_func();
             }
@@ -117,10 +142,14 @@ void* thread_main(void *args) {
                 cntr++;
             }
         }
+
+        // code run if barrier is selected
         if(is_barrier_selected) {
             bar_func();
         }
     }
+
+    delete local;
     
     pthread_barrier_wait(&bar);
 
@@ -186,13 +215,19 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    // if lock and barrier 
     if(is_lock_selected == is_barrier_selected) {
         printf("Lock and barrier selected!\n");
         exit(0);
     }
 
+    // if lock is selected, choose which function corresponds to that lock
     else if(is_lock_selected) {
         for(int i = 0; i < NUM_LOCK_FUNCS / 2; i++) {
+            if(strcmp(lock_select, "mcs") == 0) {
+                mcs_lock_selected = 1;
+                break;
+            }
             if(strcmp(lock_select, func_names[i]) == 0) {
                 LOCK_NUM = i;
                 break;
@@ -200,7 +235,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    
+
+    // if barrier is selected, choose which function corresponds to that barrier
     else if(is_barrier_selected) {
         for(int i = 0; i < NUM_BAR_FUNCS; i++) {
             if(strcmp(bar_select, func_names_barrier[i]) == 0) {
@@ -211,6 +247,7 @@ int main(int argc, char *argv[]) {
                 break;
             }
         }
+        sense_bar_var.cnt = 0;
     }
 
     pthread_t threads[num_threads];
