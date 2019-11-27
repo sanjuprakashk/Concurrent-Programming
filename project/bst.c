@@ -1,6 +1,7 @@
 #include "bst.h"
 #include <stdlib.h>
 #include <pthread.h>
+#include <unistd.h>
 
 bool put(int32_t key, int32_t value) {
     pthread_mutex_lock(&root->lock);
@@ -68,7 +69,7 @@ bool put(int32_t key, int32_t value) {
     }
 }
 
-int32_t get(int key) {
+int32_t get(int32_t key) {
     pthread_mutex_lock(&root->lock);
 
     bst_node* current = root;
@@ -107,38 +108,89 @@ int32_t get(int key) {
     }
 
 }
+
+/* root has to be locked before calling this function */
+void rangeQuery(bst_node *node, int32_t key1, int32_t key2) {
+    
+    if(node == NULL) {
+        return;
+    }
+
+    if(key1 < node->key) {
+        if(node->left != NULL){
+            pthread_mutex_lock(&node->left->lock);
+        }
+        pthread_mutex_unlock(&node->lock);
+        rangeQuery(node->left, key1, key2);
+    }
+
+    if(key1 <= node->key && key2 >= node->key) {
+         printf("%d \n", node->key);
+    }
+
+    if(key2 > node->key) {
+        if(node->left != NULL){
+            pthread_mutex_lock(&node->right->lock);
+        }
+        pthread_mutex_unlock(&node->lock);
+        rangeQuery(node->right, key1, key2);
+    }
+}
+
+
 void inorder(bst_node* root) 
-{ 
+{
     if (root != NULL) 
-    { 
+    {
         inorder(root->left); 
+        // pthread_mutex_lock(&root->lock);
         printf("%d \t %d\n", root->key, root->value); 
+        // pthread_mutex_unlock(&root->lock);
         inorder(root->right); 
     } 
 } 
 
+/* https://stackoverflow.com/questions/9181146/freeing-memory-of-a-binary-tree-c */
+void delete_tree(bst_node* node) {
+    if(node != NULL) {
+        delete_tree(node->right);
+        delete_tree(node->left);
+        free(node);
+    }
+}
+
+
 void *thread0() {
-    for(int i = 0;i < 1000; i+= 2) {
+    for(int i = 0;i < 10000; i+= 2) {
         put(i,0);
     }
 }
 
 void *thread1() {
-    for(int i = 0;i < 1000; i+= 2) {
+    for(int i = 1;i < 10000; i+= 2) {
         put(i,1);
         // inorder(root);
     }
 }
 
 void *thread2() {
-    for(int i = 0;i < 1000; i+= 5) {
-        get(i);
-    }
+    // for(int i = 0;i < 10000; i+= 100) {
+        // /get(i);
+        // MorrisTraversal(root, 0, i);
+        // inorder(root);
+        pthread_mutex_lock(&root->lock);
+        rangeQuery(root, 20, 1500);
+    // }
+}
+
+void *thread3() {
+    pthread_mutex_lock(&root->lock);
+    rangeQuery(root, 20, 1000);
 }
 int main() {
     root = (bst_node *)malloc(sizeof(bst_node));
 
-    root->key = 50;
+    root->key = 5000;
     root->value = 5;
     root->left = NULL;
     root->right = NULL;
@@ -148,12 +200,22 @@ int main() {
 
     pthread_create(&threads[0], NULL, thread0, NULL);
     pthread_create(&threads[1], NULL, thread1, NULL);
+    sleep(5);
     pthread_create(&threads[2], NULL, thread2, NULL);
+    pthread_create(&threads[3], NULL, thread3, NULL);
 
     pthread_join(threads[0], NULL);
     pthread_join(threads[1], NULL);
     pthread_join(threads[2], NULL);
+    pthread_join(threads[3], NULL);
 
     // inorder(root);
+
+    // MorrisTraversal(root, 20, 500);
+    // morris_inorder(root);
+    // inorder(root);
+     // pthread_mutex_lock(&root->lock);
+     // Print(root, 20, 10000);
+    delete_tree(root);
 
 }
