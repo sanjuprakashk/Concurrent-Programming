@@ -3,6 +3,9 @@
 #include <stdbool.h>
 #include <pthread.h>
 
+#define NUM_OF_OPERATIONS 3
+
+
 typedef struct bst_node {
     pthread_mutex_t lock;
     int32_t key;
@@ -12,5 +15,7 @@ typedef struct bst_node {
 }bst_node;
 
 bst_node* root;
+
+pthread_mutex_t global_lock;
 
 bool insert(int32_t key, int32_t value);

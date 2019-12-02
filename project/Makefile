@@ -1,7 +1,7 @@
 CC = gcc
 SRC = bst.c
 OP = bst
-CFLAGS = -pthread -g
+CFLAGS += -pthread -g
 OBJ := $(SRC:.c=.o)
 
 all: $(OBJ)
