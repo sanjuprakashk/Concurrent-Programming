@@ -17,5 +17,6 @@
 
 
 #define MAX_THREADS 500
+#define MAX_TEST_THREADS 10
 
 #endif

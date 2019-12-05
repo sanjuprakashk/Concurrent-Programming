@@ -12,6 +12,8 @@ int32_t upper_bound = 20000;
 
 int8_t rw_lock = 0;
 
+uint8_t contention = 255;
+
 bst_node* root;
 
 pthread_mutex_t global_lock;
@@ -32,7 +34,7 @@ void *thread_put(void *arg) {
         swap(&bound1, &bound2);
     }
 
-    for(int i = bound1;i < bound2; i+= 2) {
+    for(int i = bound1;i < bound2; i+= contention) {
         put(i,rand() % 65535);
         bst_node temp = get(i);
         assert(temp.key == i);
@@ -64,14 +66,25 @@ void *thread_range_query(void *arg) {
     printf("bound2 = %d\n", bound2);
 }
 
-void test_put_get() {
-    int32_t bound1 = lower_bound;
-    int32_t bound2 = upper_bound;
+void* test_threaded_put_get(void *arg) {
+    int32_t tid = *(int32_t *)arg;
+    int32_t bound1;
+    int32_t bound2;
 
-    if(bound1 > bound2) {
-        swap(&bound1, &bound2);
+
+    if(lower_bound > upper_bound) {
+        swap(&lower_bound, &upper_bound);
     }
 
+    if(tid == 0) {
+        bound1 = lower_bound;
+        bound2 = upper_bound / 2;
+    }
+    else {
+        bound1 = upper_bound / 2;
+        bound2 = upper_bound;   
+    }
+    
     for(int i = bound1;i < bound2; i+= 1) {
         int32_t random_num = rand() % 65535;
         put(i, random_num);
@@ -103,12 +116,19 @@ void range_test() {
         printf("%d \t %d\n", range_data[0][j].key, range_data[0][j].value);
         bound1++;
     }
-
-
 }
 
 void test_all() {
-    test_put_get();
+    pthread_t threads[2];
+
+    int32_t tid[2] = {0, 1};
+
+    pthread_create(&threads[0], NULL, test_threaded_put_get, &tid[0]);
+    pthread_create(&threads[1], NULL, test_threaded_put_get, &tid[1]);
+
+    pthread_join(threads[0], NULL);
+    pthread_join(threads[1], NULL);
+
     range_test();  
 }
 
@@ -120,6 +140,7 @@ int main(int argc, char *argv[]) {
     static struct option long_options[] = {
         {"t", optional_argument, NULL, 't'},
         {"lower", required_argument, NULL, 'l'},
+        {"contention", required_argument, NULL, 'c'},
         {"upper", required_argument, NULL, 'u'},
         {"sync", required_argument, NULL, 's'},
         {"test", required_argument, NULL, 'y'},
@@ -160,6 +181,10 @@ int main(int argc, char *argv[]) {
                 exit(0);
             }
 
+            break;
+
+            case 'c':
+            contention = atoi(optarg);
             break;
 
             case 'y':
