@@ -19,6 +19,8 @@ typedef struct bst_node {
     struct bst_node* right;
 }bst_node;
 
+bst_node *create_new_node(int32_t key, int32_t value);
+
 void inorder(bst_node* root);
 
 void delete_tree(bst_node* node);

@@ -17,6 +17,8 @@
 
 
 #define MAX_THREADS 500
-#define MAX_TEST_THREADS 10
+#define DEFAULT_NUM_THREADS 3
+
+#define HIGH_CONTETNION_FACTOR 5
 
 #endif
