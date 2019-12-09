@@ -31,7 +31,8 @@ extern pthread_mutex_t global_lock;
 
 /* Function to create new node in BST */
 bst_node *create_new_node(int32_t key, int32_t value) {
-     bst_node* new_node = (bst_node *)malloc(sizeof(bst_node));
+    
+    bst_node* new_node = (bst_node *)malloc(sizeof(bst_node));
 
     new_node->key = key;
     new_node->value = value;

@@ -29,7 +29,7 @@ int8_t rw_lock = 0;
 uint8_t contention = 255;
 
 uint8_t high_contention = 0;
-uint8_t low_contention = 0;
+uint8_t randomized = 0;
 
 uint32_t incrementor = 1;
 
@@ -247,14 +247,13 @@ int main(int argc, char *argv[]) {
         {"t", optional_argument, NULL, 't'},
         {"lower", required_argument, NULL, 'l'},
         {"upper", required_argument, NULL, 'u'},
-        {"contention", required_argument, NULL, 'c'},
-        {"incrementor", optional_argument, NULL, 'i'},
+        {"incrementor", required_argument, NULL, 'i'},
         {"sync", required_argument, NULL, 's'},
         {"test", required_argument, NULL, 'y'},
 
     };
 
-    while( (cli_arguments = getopt_long(argc, argv,"t:y:c:i:",
+    while( (cli_arguments = getopt_long(argc, argv,"t:y:i:",
      long_options, &long_index) ) != -1) {
 
         switch ( cli_arguments ) {
@@ -292,40 +291,27 @@ int main(int argc, char *argv[]) {
 
             break;
 
-            case 'c':
-            printf("option = %s\n", optarg);
+            case 'y':
             if(strcmp("high", optarg) == 0) {
                 high_contention = 1;
                 printf("High contention\n");
             }
-            else if(strcmp("low", optarg) == 0) {
-                low_contention = 1;
+            else if(strcmp("random", optarg) == 0) {
+                randomized = 1;
                 printf("Low contention\n");
             }
+            else if(strcmp("simple", optarg) == 0) {
+                testing = 1;
+            }
             else {
-                high_contention = 0;
-                low_contention = 0;
+                printf("Enter testing method as simple, random or high\n");
+                exit(0);
             }
             break;
 
             case 'i':
+            printf("Inc = %s\n", optarg);
             incrementor = atoi(optarg);
-            break;
-
-            case 'y':
-            printf("option = %s\n", optarg);
-            if(strcmp("yes", optarg) == 0) {
-                testing = 1;
-                printf("Testing\n");
-            }
-            else if(strcmp("no", optarg) == 0) {
-                testing = 0;
-                printf("Normal execution\n");
-            }
-            else {
-                printf("Enter yes/no for testing\n");
-                exit(0);
-            }
             break;
 
             case '?':
@@ -336,11 +322,11 @@ int main(int argc, char *argv[]) {
     srand(time(0)); 
 
     if(pthread_mutex_init(&global_lock, NULL) != 0) {
-        perror("left mutex init error");
+        perror("global mutex init error");
         exit(0);
     }
 
-    if(!testing) {
+    if(randomized) {
         pthread_t threads[num_threads];
         int32_t tid[num_threads] ={0};
         int32_t each_thread = num_threads / NUM_OF_OPERATIONS;
@@ -379,56 +365,61 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    else if(high_contention) {
+        for(int32_t i = upper_bound; i > lower_bound; i--) {
+            put(i, rand() % 65535);
+        }
+
+        clock_gettime(CLOCK_MONOTONIC, &start);
+
+        pthread_t threads[num_threads];
+        int32_t tid[num_threads] ={0};
+        int32_t each_thread = num_threads / NUM_OF_OPERATIONS;
+        int32_t i = 0;
+
+        for(i = 0; i < each_thread; i++) {
+            int32_t tid = i;
+            pthread_create(&threads[i], NULL, thread_high_contention_put, &tid);
+        }
+
+        for(i = each_thread; i < (each_thread * 2); i++) {
+            int32_t tid = i;
+            pthread_create(&threads[i], NULL, thread_high_contention_get, &tid);
+        }
+
+        for(i = (each_thread * 2); i < num_threads; i++) {
+            tid[i] = i;
+            pthread_create(&threads[i], NULL, thread_high_contention_range_query, &tid[i]);
+        }
+
+        for(i = 0; i < num_threads; i++) {
+            pthread_join(threads[i], NULL);
+        }
+
+    }
+
+    else if(testing) {
+        clock_gettime(CLOCK_MONOTONIC, &start);
+        test_all();
+    }
+
     else {
-        if(high_contention) {
-            for(int32_t i = upper_bound; i > lower_bound; i--) {
-                put(i, rand() % 65535);
-            }
-
-            clock_gettime(CLOCK_MONOTONIC, &start);
-
-            pthread_t threads[num_threads];
-            int32_t tid[num_threads] ={0};
-            int32_t each_thread = num_threads / NUM_OF_OPERATIONS;
-            int32_t i = 0;
-
-            for(i = 0; i < each_thread; i++) {
-                int32_t tid = i;
-                pthread_create(&threads[i], NULL, thread_high_contention_put, &tid);
-            }
-
-            for(i = each_thread; i < (each_thread * 2); i++) {
-                int32_t tid = i;
-                pthread_create(&threads[i], NULL, thread_high_contention_get, &tid);
-            }
-
-            for(i = (each_thread * 2); i < num_threads; i++) {
-                tid[i] = i;
-                pthread_create(&threads[i], NULL, thread_high_contention_range_query, &tid[i]);
-            }
-
-            for(i = 0; i < num_threads; i++) {
-                pthread_join(threads[i], NULL);
-            }
-
-        }
-        
-        else {
-            clock_gettime(CLOCK_MONOTONIC, &start);
-            test_all();
-        }
+        exit(0);
     }
 
     clock_gettime(CLOCK_MONOTONIC, &finish);
 
     inorder(root);
-    delete_tree(root);
 
     unsigned long long elapsed_ns;
     elapsed_ns = (finish.tv_sec-start.tv_sec)*1000000000 + (finish.tv_nsec-start.tv_nsec);
     printf("Elapsed (ns): %llu\n",elapsed_ns);
     double elapsed_s = ((double)elapsed_ns)/1000000000.0;
     printf("Elapsed (s): %lf\n",elapsed_s);
+
+    printf("Root node key = %d\n", root->key);
+
+    delete_tree(root);
 
 
     return 0;
