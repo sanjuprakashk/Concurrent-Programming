@@ -19,12 +19,8 @@ case $option in
     ;;
     4) ./bst -t 50 --lower 0 --upper 10000 --test random --sync rw
     ;;
-    5) ./bst  --lower 0 --upper 50000 --test simple --sync hoh --incrementor 10
+    5) ./bst  --lower 0 --upper 50000 --test assert --sync hoh --incrementor 10
     ;;
-    6) ./bst  --lower 0 --upper 50000 --test simple --sync rw --incrementor 10
+    6) ./bst  --lower 0 --upper 50000 --test assert --sync rw --incrementor 10
     ;;
 esac
-# while true; do
-#     sleep 1
-#     ./bst -t 10 --lower 0 --upper 10000 --test high --sync hoh
-# done

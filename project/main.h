@@ -1,3 +1,11 @@
+/**
+ * @file   main.h
+ * @author Sanju Prakash Kannioth
+ * @brief  This file contains the headers and macros required by main.cpp
+ * @date   12/09/2019
+ *
+ */
+
 #ifndef MAIN_H_
 #define MAIN_H_
 
@@ -11,9 +19,7 @@
 #include <string.h>
 
 #include <algorithm> 
-#include <vector> 
-
-#include <sys/resource.h>
+#include <vector>
 
 
 #define MAX_THREADS 500

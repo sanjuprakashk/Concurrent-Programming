@@ -95,7 +95,7 @@ void *thread_range_query(void *arg) {
     printf("bound2 = %d\n", bound2);
 }
 
-
+/* Thread callback function for high contention put */
 void *thread_high_contention_put(void *arg) {
     int32_t bound1 = lower_bound;
     int32_t bound2 = upper_bound;
@@ -114,6 +114,8 @@ void *thread_high_contention_put(void *arg) {
     }
 }
 
+
+/* Thread callback function for high contention get */
 void *thread_high_contention_get(void *arg) {
     int32_t bound1 = lower_bound;
     int32_t bound2 = upper_bound;
@@ -128,6 +130,8 @@ void *thread_high_contention_get(void *arg) {
     }
 }
 
+
+/* Thread callback function for high contention range query */
 void *thread_high_contention_range_query(void *arg) {
     int32_t tid = *(int32_t *)arg;
     int32_t bound1 = lower_bound;
@@ -140,7 +144,7 @@ void *thread_high_contention_range_query(void *arg) {
     rangeQuery(root, bound1, bound2, tid);
 }
 
-
+/* Function used to round up values to the closest multiple of incrementor */
 /* https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number */
 int roundUp(int numToRound, int multiple)
 {
@@ -164,9 +168,8 @@ void* test_threaded_put_get(void *arg) {
     int32_t bound1;
     int32_t bound2;
 
+    // round up lower bound to be a multiple of incrementor. Required to assertion test
     lower_bound = roundUp(lower_bound, incrementor);
-    // upper_bound = closestMultiple(upper_bound, incrementor);
-
 
     if(lower_bound > upper_bound) {
         swap(&lower_bound, &upper_bound);
@@ -176,24 +179,23 @@ void* test_threaded_put_get(void *arg) {
 
         bound1 = lower_bound;
         bound2 = (upper_bound + lower_bound) / 2;
+        // round up bound2 to be a multiple of incrementor. Required to assertion test
         bound2 = roundUp(bound2, incrementor);
-        printf("bound1 = %d\n", bound1);
-        printf("bound2 = %d\n", bound2);
     }
     else {
         bound1 = (upper_bound + lower_bound) / 2;
+        // round up bound1 to be a multiple of incrementor. Required to assertion test
         bound1 = roundUp(bound1, incrementor);
         bound2 = upper_bound;
-        printf("bound1 = %d\n", bound1);
-        printf("bound2 = %d\n", bound2);
     }
     
     for(int i = bound1;i < bound2; i+= incrementor) {
         int32_t random_num = rand() % 65535;
-        put(i, random_num);
+        assert(put(i, random_num));
         
         bst_node temp = get(i);
         
+        /* Assert key and value have been inserted successfully */
         assert(temp.key == i);
         assert(temp.value == random_num);
 
@@ -214,10 +216,10 @@ void range_test() {
 
     rangeQuery(root, bound1, bound2, tid);
 
+    /* Loop over range data and assert all keys have been inserted successfully */
     for (int j = 0; j < range_data[0].size(); j++)
     {
         printf("%d \t %d\n", range_data[0][j].key, range_data[0][j].value);
-        printf("Bound = %d\n", bound1);
         assert(range_data[0][j].key == bound1);
         bound1 += incrementor; 
     }
@@ -300,11 +302,11 @@ int main(int argc, char *argv[]) {
                 randomized = 1;
                 printf("Low contention\n");
             }
-            else if(strcmp("simple", optarg) == 0) {
+            else if(strcmp("assert", optarg) == 0) {
                 testing = 1;
             }
             else {
-                printf("Enter testing method as simple, random or high\n");
+                printf("Enter testing method as assert, random or high\n");
                 exit(0);
             }
             break;
@@ -416,8 +418,6 @@ int main(int argc, char *argv[]) {
     printf("Elapsed (ns): %llu\n",elapsed_ns);
     double elapsed_s = ((double)elapsed_ns)/1000000000.0;
     printf("Elapsed (s): %lf\n",elapsed_s);
-
-    printf("Root node key = %d\n", root->key);
 
     delete_tree(root);
 
